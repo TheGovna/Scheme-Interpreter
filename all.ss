@@ -54,6 +54,13 @@
 ; datatype for procedures.  At first there is only one
 ; kind of procedure, but more kinds will be added later.
 
+(define-datatype environment environment?
+  (empty-env-record)
+  (extended-env-record
+   (syms (list-of symbol?))
+   (vals (list-of scheme-value?))
+   (env environment?)))
+
 (define-datatype proc-val proc-val?
   [prim-proc
    (name symbol?)])
@@ -62,13 +69,6 @@
 
 (define scheme-value?
   (lambda (x) #t))
-
-(define-datatype environment environment?
-  (empty-env-record)
-  (extended-env-record
-   (syms (list-of symbol?))
-   (vals (list-of scheme-value?))
-   (env environment?)))
 
 ; #parser
 
@@ -212,11 +212,16 @@
 			   id)))]
       [quoted-exp (id) id]
       [if-else-exp (condition true false)
-        (if (eval-exp condition env) (eval-exp true env) (eval-exp false env))]
+        (if (eval-exp condition env) 
+            (eval-exp true env) 
+            (eval-exp false env))]
       [app-exp (rator rands)
         (let ([proc-value (eval-exp rator env)]
-              [args (eval-rands rands)])
+              [args (eval-rands rands env)])
           (apply-proc proc-value args))]
+      [let-exp (vars decs body)
+        (let [[new-env (map (lambda (x) (eval-exp x env)) decs)]] ; WE ARE HEREEEEEEEEEEEEEEE!!!!!!!!!
+          ())]
       [else (eopl:error 'eval-exp "Bad abstract syntax: ~a" exp)])))
 
 ; evaluate the list of operands, putting results into a list
@@ -238,7 +243,12 @@
                    "Attempt to apply bad procedure: ~s" 
                     proc-value)])))
 
-(define *prim-proc-names* '(+ - * add1 sub1 cons =))
+(define *prim-proc-names* '(+ - * / add1 sub1 zero? not cons = < > <= >= car cdr caar
+                            cadr cdar cddr caaar caadr cadar caddr cdaar cdadr cddar
+                            cdddr list null? assq eq? equal? atom? length list->vector
+                            list? pair? procedure? vector->list vector make-vector
+                            vector-ref vector? number? symbol? set-car! set-cdr!
+                            vector-set! display newline))
 
 (define init-env         ; for now, our initial global environment only contains 
   (extend-env            ; procedure names.  Recall that an environment associates
@@ -253,13 +263,57 @@
 (define apply-prim-proc
   (lambda (prim-proc args)
     (case prim-proc
-      [(+) (+ (1st args) (2nd args))]
-      [(-) (- (1st args) (2nd args))]
-      [(*) (* (1st args) (2nd args))]
+      [(+) (apply + args)]
+      [(-) (apply - args)]
+      [(*) (apply * args)]
+      [(/) (apply / args)]
       [(add1) (+ (1st args) 1)]
       [(sub1) (- (1st args) 1)]
+      [(zero?) (if (valid-zero? args) (zero? (car args)))]
+      [(not) (apply not args)]
       [(cons) (cons (1st args) (2nd args))]
-      [(=) (= (1st args) (2nd args))]
+      [(=) (apply = args)]
+      [(<) (apply < args)]
+      [(>) (apply > args)]
+      [(<=) (apply <= args)]
+      [(>=) (apply >= args)]
+      [(car) (apply car args)]
+      [(cdr) (apply cdr args)]
+      [(caar) (apply caar args)]
+      [(cadr) (apply cadr args)]
+      [(cdar) (apply cdar args)]
+      [(cddr) (apply cddr args)]
+      [(caaar) (apply caaar args)]
+      [(caadr) (apply caadr args)]
+      [(cadar) (apply cadar args)]
+      [(caddr) (apply caddr args)]
+      [(cdaar) (apply cdaar args)]
+      [(cdadr) (apply cdadr args)]
+      [(cddar) (apply cddar args)]
+      [(cdddr) (apply cdddr args)]
+      [(list) (apply list args)]
+      [(null?) (apply null? args)]
+      [(assq) (apply assq args)]
+      [(eq?) (apply eq? args)]
+      [(equal?) (apply equal? args)]
+      [(atom?) (apply atom? args)]
+      [(length) (apply length args)]
+      [(list->vector) (apply list->vector args)]
+      [(list?) (apply list? args)]
+      [(pair?) (apply pair? args)]
+      [(procedure?) (or (procedure? (car args)) (proc-val? (car args)))]
+      [(vector->list) (apply vector->list args)]
+      [(vector) (apply vector args)]
+      [(make-vector) (apply make-vector args)]
+      [(vector-ref) (apply vector-ref args)]
+      [(vector?) (apply vector? args)]
+      [(number?) (apply number? args)]
+      [(symbol?) (apply symbol? args)]
+      [(set-car!) (apply set-car! args)]
+      [(set-cdr!) (apply set-cdr! args)]
+      [(vector-set!) (apply vector-set! args)]
+      [(display) (apply display args)]
+      [(newline) (apply newline args)]
       [else (error 'apply-prim-proc 
             "Bad primitive procedure name: ~s" 
             prim-op)])))
@@ -398,4 +452,11 @@
       [(not (symbol? (2nd lst)))
        (eopl:error 'parse-exp "set! expression: variable must be a symbol: ~s" lst)]
       [else #t]
-      )))                                                                            
+      )))
+
+(define valid-zero?
+  (lambda (num)
+    (cond
+      [(not (null? (cdr num))) (eopl:error 'zero? "incorrect argument count in call zero? ~s" lst)]
+      [else #t]
+      )))                                                                           
