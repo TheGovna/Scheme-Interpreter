@@ -3,7 +3,7 @@
     (id symbol?)]
   [lit-exp
     (id (lambda (x) 
-          (or (number? x) (string? x) (boolean? x) (null? x) (vector? x))))] ; what about quoted lists?
+          (or (and (list? x) (eqv? (car x) 'quote)) (number? x) (string? x) (boolean? x) (null? x) (vector? x))))] ; what about quoted lists?
   [if-else-exp
     (condition expression?)
     (true expression?)
