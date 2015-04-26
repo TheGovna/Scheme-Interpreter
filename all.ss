@@ -1,13 +1,21 @@
 (load "chez-init.ss")
 
-; #datatypes
+ ; #datatypes
+ ;  _____        _        _                         
+ ; |  __ \      | |      | |                        
+ ; | |  | | __ _| |_ __ _| |_ _   _ _ __   ___  ___ 
+ ; | |  | |/ _` | __/ _` | __| | | | '_ \ / _ \/ __|
+ ; | |__| | |_| | || |_| | |_| |_| | |_| |  __/\__ \
+ ; |_____/ \__,_|\__\__,_|\__|\__, | .__/ \___||___/
+ ;                             __/ | |              
+ ;                            |___/|_|              
 
 (define-datatype expression expression?
   [var-exp
     (id symbol?)]
   [lit-exp
-    (id (lambda (x) 
-          (or (number? x) (string? x) (boolean? x) (null? x) (vector? x))))] ; what about quoted lists?
+   (id (lambda (x) 
+         (or (number? x) (string? x) (boolean? x) (null? x) (vector? x))))] ; what about quoted lists?
   [quoted-exp 
     (id (lambda x #t))]
   [if-else-exp
@@ -50,27 +58,37 @@
   [app-exp
     (rator expression?)
     (rand (list-of expression?))])
-	
-; datatype for procedures.  At first there is only one
-; kind of procedure, but more kinds will be added later.
 
 (define-datatype environment environment?
   (empty-env-record)
   (extended-env-record
-   (syms (list-of symbol?))
-   (vals (list-of scheme-value?))
-   (env environment?)))
+    (syms (list-of symbol?))
+    (vals (list-of scheme-value?))
+    (env environment?)))
+
+; datatype for procedures.  At first there is only one
+; kind of procedure, but more kinds will be added later.
 
 (define-datatype proc-val proc-val?
   [prim-proc
-   (name symbol?)])
+    (name symbol?)]
+  [closure
+    (ids (list-of symbol?))
+    (bodies (list-of expression?))
+    (env environment?)])
 	 	
 ; environment type definitions
 
 (define scheme-value?
   (lambda (x) #t))
 
-; #parser
+ ; #parser
+ ;  _____                         
+ ; |  __ \                        
+ ; | |__| |_ _ _ __ ___  ___ _ __ 
+ ; |  ___/ _` | '__/ __|/ _ \ '__|
+ ; | |  | |_| | |  \__ \  __/ |   
+ ; |_|   \__,_|_|  |___/\___|_|   
 
 ; Procedures to make the parser a little bit saner.
 (define 1st car)
@@ -105,8 +123,7 @@
          )]
       [(eqv? (1st datum) 'if)
        (if (valid-if? datum) 
-           (if 
-               (eqv? (length datum) 4) 
+           (if (eqv? (length datum) 4) 
                (if-else-exp ; if-then-else
                  (parse-exp (2nd datum)) 
                  (parse-exp (3rd datum)) 
@@ -115,19 +132,18 @@
                  (parse-exp (2nd datum))
                  (parse-exp (3rd datum)))))]
       [(eqv? (1st datum) 'let)
-       (if
-         (symbol? (2nd datum)) ; named let
-         (if (valid-named-let-exp? datum) 
-             (named-let-exp
-               (2nd datum)
-               (map 1st (3rd datum))
-               (map (lambda (x) (parse-exp (2nd x))) (3rd datum))
-               (map parse-exp (cdddr datum))))
-         (if (valid-let-exp? datum) 
-             (let-exp ; normal let
-               (map 1st (2nd datum))
-               (map (lambda (x) (parse-exp (2nd x))) (2nd datum))
-               (map parse-exp (cddr datum)))))]
+       (if (symbol? (2nd datum)) ; named let
+           (if (valid-named-let-exp? datum) 
+               (named-let-exp
+                 (2nd datum)
+                 (map 1st (3rd datum))
+                 (map (lambda (x) (parse-exp (2nd x))) (3rd datum))
+                 (map parse-exp (cdddr datum))))
+           (if (valid-let-exp? datum) 
+               (let-exp ; normal let
+                 (map 1st (2nd datum))
+                 (map (lambda (x) (parse-exp (2nd x))) (2nd datum))
+                 (map parse-exp (cddr datum)))))]
       [(eqv? (1st datum) 'let*) 
        (if (valid-let*-exp? datum) 
            (let*-exp
@@ -145,13 +161,19 @@
            (set!-exp
              (2nd datum)
              (parse-exp (3rd datum))))]
-         [(valid-app-exp? datum) 
-          (app-exp 
-            (parse-exp (1st datum))
-            (map parse-exp (cdr datum)))]      
+      [(valid-app-exp? datum) 
+       (app-exp 
+         (parse-exp (1st datum))
+         (map parse-exp (cdr datum)))]      
       [else (eopl:error 'parse-exp "bad expression: ~s" datum)])))
 
-; #environment                               
+ ; #environment                               
+ ;  ______            _                                      _   
+ ; |  ____|          |_|                                    | |  
+ ; | |__   _ ____   ___ _ __ ___  _ __  _ __ ___   ___ _ __ | |_ 
+ ; |  __| | '_ \ \ / / | '__/ _ \| '_ \| '_ ` _ \ / _ \ '_ \| __|
+ ; | |____| | | \ V /| | | | |_| | | | | | | | | |  __/ | | | |_ 
+ ; |______|_| |_|\_/ |_|_|  \___/|_| |_|_| |_| |_|\___|_| |_|\__|
 
 ; Environment definitions for CSSE 304 Scheme interpreter.  Based on EoPL section 2.3
 
@@ -189,14 +211,30 @@
 	      (apply-env env sym succeed fail)))))))
 
 
- ; #interpreter                                                             
+ ; #interpreter   
+ ;  _____       _                           _            
+ ; |_   _|     | |                         | |           
+ ;   | |  _ __ | |_ ___ _ __ _ __  _ __ ___| |_ ___ _ __ 
+ ;   | | | '_ \| __/ _ \ '__| '_ \| '__/ _ \ __/ _ \ '__|
+ ;  _| |_| | | | ||  __/ |  | |_| | | |  __/ ||  __/ |   
+ ; |_____|_| |_|\__\___|_|  | .__/|_|  \___|\__\___|_|   
+ ;                          | |                          
+ ;                          |_|                                                                                        
 
 ; top-level-eval evaluates a form in the global environment
 
 (define top-level-eval
   (lambda (form)
     ; later we may add things that are not expressions.
-    (eval-exp form init-env)))
+    (eval-exp form (empty-env))))
+
+; let's hope Claude only does this thing only in Chez Scheme
+(define eval-bodies
+  (lambda (bodies env)
+    (let* [[reversed-bodies (reverse bodies)]
+           [result-bodies (map (lambda (x) (eval-exp x env)) reversed-bodies)]
+           [result (car result-bodies)]]
+      result)))
 
 ; eval-exp is the main component of the interpreter
 
@@ -205,11 +243,18 @@
     (cases expression exp
       [lit-exp (datum) datum]
       [var-exp (id)
-        (apply-env init-env id; look up its value.
+        (apply-env 
+          env 
+          id; look up its value.
           (lambda (x) x) ; procedure to call if id is in the environment 
-          (lambda () (eopl:error 'apply-env ; procedure to call if id not in env
+          (lambda () ; procedure to call if id is not in env
+            (apply-env global-env ; was init-env
+              id
+              (lambda (x) x)
+              (lambda () (eopl:error 'apply-env ; procedure to call if id not in env
 		          "variable not found in environment: ~s"
-			   id)))]
+			   id)))
+            ))]
       [quoted-exp (id) id]
       [if-else-exp (condition true false)
         (if (eval-exp condition env) 
@@ -219,9 +264,15 @@
         (let ([proc-value (eval-exp rator env)]
               [args (eval-rands rands env)])
           (apply-proc proc-value args))]
-      [let-exp (vars decs body)
-        (let [[new-env (map (lambda (x) (eval-exp x env)) decs)]] ; WE ARE HEREEEEEEEEEEEEEEE!!!!!!!!!
-          ())]
+      [let-exp (vars declarations body)
+        (let [[new-env
+                (extend-env 
+                  vars 
+                  (map (lambda (x) (eval-exp x env)) declarations) 
+                  env)]]
+          (eval-bodies body new-env))] ; evaluate bodies in order, return last value
+      [lambda-list-exp (id body)
+        (closure id body env)]
       [else (eopl:error 'eval-exp "Bad abstract syntax: ~a" exp)])))
 
 ; evaluate the list of operands, putting results into a list
@@ -237,7 +288,15 @@
 (define apply-proc
   (lambda (proc-value args)
     (cases proc-val proc-value
-      [prim-proc (op) (apply-prim-proc op args)]
+      [prim-proc (op) 
+        (apply-prim-proc op args)]
+      [closure (ids bodies env)
+        (let [[new-env
+                (extend-env
+                  ids
+                  args
+                  env)]]
+          (eval-bodies bodies new-env))] 
 			; You will add other cases
       [else (error 'apply-proc
                    "Attempt to apply bad procedure: ~s" 
@@ -256,6 +315,8 @@
      (map prim-proc      
           *prim-proc-names*)
      (empty-env)))
+
+(define global-env init-env)
 
 ; Usually an interpreter must define each 
 ; built-in procedure individually.  We are "cheating" a little bit.
@@ -330,7 +391,15 @@
 (define eval-one-exp
   (lambda (x) (top-level-eval (parse-exp x))))
 
-; #error checking
+ ; #error checking
+ ;  ______                        _____ _               _    _             
+ ; |  ____|                      / ____| |             | |  |_|            
+ ; | |__   _ __ _ __ ___  _ __  | |    | |__   ___  ___| | ___ _ __   __ _ 
+ ; |  __| | '__| '__/ _ \| '__| | |    | '_ \ / _ \/ __| |/ / | '_ \ / _` |
+ ; | |____| |  | | | |_| | |    | |____| | | |  __/ |__|   <| | | | | |_| |
+ ; |______|_|  |_|  \___/|_|     \_____|_| |_|\___|\___|_|\_\_|_| |_|\__, |
+ ;                                                                    __/ |
+ ;                                                                   |___/       
 
 (define valid-lambda-list-exp?
   (lambda (lst)
