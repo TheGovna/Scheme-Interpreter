@@ -15,7 +15,7 @@
     (id symbol?)]
   [lit-exp
    (id (lambda (x) 
-         (or (number? x) (string? x) (boolean? x) (null? x) (vector? x))))] ; what about quoted lists?
+         (or (number? x) (string? x) (boolean? x) (null? x) (vector? x))))]
   [quoted-exp 
     (id (lambda x #t))]
   [if-else-exp
@@ -76,6 +76,17 @@
     (ids (list-of symbol?))
     (bodies (list-of expression?))
     (env environment?)])
+
+; datatype for slist 
+; TODO: delete this!
+(define-datatype slist slist?
+  [null-slist]
+  [car-symbol-slist
+    (car-slist symbol?)
+    (cdr-slist slist?)]
+  [car-slist-slist
+    (car-slist slist?)
+    (cdr-slist slist?)])
 	 	
 ; environment type definitions
 
@@ -95,6 +106,46 @@
 (define 2nd cadr)
 (define 3rd caddr)
 (define 4th cadddr)
+
+(define member?
+  (lambda (obj list)
+    (not (not (member obj list)))))
+
+; Takes a let expression and converts it to lambdas
+; Ex:
+; > (let->application '(let [[a 1]
+;                            [b 2]] 
+;                        (let [[c 3]
+;                              [d 4]]
+;                          (+ a b c d))))
+; > ((lambda (a b) ((lambda (c d) (+ a b c d)) 3 4)) 1 2)
+(define let->application
+  (lambda (expr)
+    (cond
+      [(or (symbol? expr) (not (eqv? 'let (car expr))))
+       expr]
+      [else
+        (let [[args (map cadr (cadr expr))]
+              [vars (map car (cadr expr))]] 
+          (cons (list 'lambda vars (let->application (caddr expr))) args))
+        ])))
+
+(define nest-lets
+  (lambda (vars other)
+    (if (= (length vars) 1) (list 'let vars other)
+        (list 'let (list (car vars)) (nest-lets (cdr vars) other)))))
+
+; Takes a let* expression and converts it to lets
+; Ex:
+; > (let*->let '(let* [[a 1]
+;                      [b (* a 2)]] 
+;                 (+ a b)))
+; > (let ([a 1]) (let ([b (* a 2)]) (+ a b)))
+(define let*->let
+  (lambda (expr)
+    (let [[vars (cadr expr)]
+          [other (caddr expr)]]
+      (nest-lets vars other))))
 
 (define parse-exp         
   (lambda (datum)
@@ -177,13 +228,15 @@
 
 ; Environment definitions for CSSE 304 Scheme interpreter.  Based on EoPL section 2.3
 
+; produces a representation of the empty environment
 (define empty-env
   (lambda ()
     (empty-env-record)))
 
 (define extend-env
   (lambda (syms vals env)
-    (extended-env-record syms vals env)))
+    (begin (display '(*** extend-env ***)) (newline) (display '-syms:) (display syms) (newline) (display '-vals:) (display vals) (newline) (display '-env:) (display env) (newline) (newline)
+      (extended-env-record syms vals env))))
 
 (define list-find-position
   (lambda (sym los)
@@ -209,7 +262,6 @@
       	  (if (number? pos)
 	      (succeed (list-ref vals pos))
 	      (apply-env env sym succeed fail)))))))
-
 
  ; #interpreter   
  ;  _____       _                           _            
@@ -248,7 +300,8 @@
           id; look up its value.
           (lambda (x) x) ; procedure to call if id is in the environment 
           (lambda () ; procedure to call if id is not in env
-            (apply-env global-env ; was init-env
+            (apply-env 
+              global-env ; was init-env
               id
               (lambda (x) x)
               (lambda () (eopl:error 'apply-env ; procedure to call if id not in env
@@ -264,13 +317,13 @@
         (let ([proc-value (eval-exp rator env)]
               [args (eval-rands rands env)])
           (apply-proc proc-value args))]
-      [let-exp (vars declarations body)
+      [let-exp (vars declarations bodies)
         (let [[new-env
                 (extend-env 
                   vars 
                   (map (lambda (x) (eval-exp x env)) declarations) 
                   env)]]
-          (eval-bodies body new-env))] ; evaluate bodies in order, return last value
+          (eval-bodies bodies new-env))] ; evaluate bodies in order, return last value
       [lambda-list-exp (id body)
         (closure id body env)]
       [else (eopl:error 'eval-exp "Bad abstract syntax: ~a" exp)])))
@@ -291,12 +344,13 @@
       [prim-proc (op) 
         (apply-prim-proc op args)]
       [closure (ids bodies env)
+        (begin (display '(*** apply-proc to closure ***)) (newline) (display '-ids:) (display ids) (newline) (display '-bodies:) (display bodies) (newline) (display '-environment:) (display env) (newline) (newline)
         (let [[new-env
                 (extend-env
                   ids
                   args
                   env)]]
-          (eval-bodies bodies new-env))] 
+          (eval-bodies bodies new-env)))] 
 			; You will add other cases
       [else (error 'apply-proc
                    "Attempt to apply bad procedure: ~s" 
@@ -320,6 +374,7 @@
 
 ; Usually an interpreter must define each 
 ; built-in procedure individually.  We are "cheating" a little bit.
+; TODO: add error statements if the interpreted code attempts to apply a proc to an incorrect number of args                                                                       
 
 (define apply-prim-proc
   (lambda (prim-proc args)
