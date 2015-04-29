@@ -102,6 +102,16 @@
 (define scheme-value?
   (lambda (x) #t))
 
+ ; #syntax expander
+ ;   _____             _               ______                            _           
+ ;  / ____|           | |             |  ____|                          | |          
+ ; | (___  _   _ _ __ | |_ __ ___  __ | |__  __  ___ __   __ _ _ __   __| | ___ _ __ 
+ ;  \___ \| | | | '_ \| __/ _` \ \/ / |  __| \ \/ / '_ \ / _` | '_ \ / _` |/ _ \ '__|
+ ;  ____) | |_| | | | | || (_| |>  <  | |____ >  <| |_) | (_| | | | | (_| |  __/ |   
+ ; |_____/ \__, |_| |_|\__\__,_/_/\_\ |______/_/\_\ .__/ \__,_|_| |_|\__,_|\___|_|   
+ ;          __/ |                                 | |                                
+ ;         |___/                                  |_|                                
+
  ; #parser
  ;  _____                         
  ; |  __ \                        
@@ -293,55 +303,6 @@
 	      (succeed (list-ref vals pos))
 	      (apply-env env sym succeed fail)))))))
 
- ; #syntax expander
- ;   _____             _               ______                            _           
- ;  / ____|           | |             |  ____|                          | |          
- ; | (___  _   _ _ __ | |_ __ ___  __ | |__  __  ___ __   __ _ _ __   __| | ___ _ __ 
- ;  \___ \| | | | '_ \| __/ _` \ \/ / |  __| \ \/ / '_ \ / _` | '_ \ / _` |/ _ \ '__|
- ;  ____) | |_| | | | | || (_| |>  <  | |____ >  <| |_) | (_| | | | | (_| |  __/ |   
- ; |_____/ \__, |_| |_|\__\__,_/_/\_\ |______/_/\_\ .__/ \__,_|_| |_|\__,_|\___|_|   
- ;          __/ |                                 | |                                
- ;         |___/                                  |_|                                
-
-(define syntax-expand
-  (lambda (exp)
-    (cases expression exp
-      [var-exp (id) exp]
-      [lit-exp (id) exp]
-      [quoted-exp (id) exp]
-      [if-else-exp (condition true false)
-        (if-else-exp
-          (syntax-expand condition)
-          (syntax-expand true)
-          (syntax-expand false))]
-      [if-exp (condition true)
-        (if-exp
-          (syntax-expand condition)
-          (syntax-expand true))]
-      [let-exp (vars declarations bodies)
-        ]
-      [named-let-exp (name vars declarations bodies)]
-      [let*-exp (vars declarations bodies)]
-      [letrec-exp (vars declarations bodies)]
-      [lambda-list-exp (id bodies)
-        (lambda-list-exp
-          id
-          (map syntax-expand bodies))] ; think this is right?
-      [lambda-single-exp (id bodies)
-        (lambda-single-exp
-          id
-          (map syntax-expand bodies))]
-      [lambda-improper-exp (id bodies)
-        (lambda-improper-exp
-          id
-          (map syntax-expand bodies))]
-      [set!-exp (var expr) exp]
-      [app-exp (rator rand)
-        (app-exp
-          (syntax-expand rator)
-          (syntax-expand rand))]      
-      )))                                                                       
-
  ; #interpreter   
  ;  _____       _                           _            
  ; |_   _|     | |                         | |           
@@ -392,10 +353,6 @@
         (if (eval-exp condition env) 
             (eval-exp true env) 
             (eval-exp false env))]
-      [if-exp (condition true)
-        (if (eval-exp condition env) 
-            (eval-exp true env) 
-            (void))]
       [app-exp (rator rands)
         (let ([proc-value (eval-exp rator env)]
               [args (eval-rands rands env)])
