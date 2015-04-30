@@ -229,7 +229,7 @@
        (cond-exp
          (map parse-exp (get-cond-conditions (cdr datum)))
          (map parse-exp (get-cond-exprs (cdr datum)))
-         (parse-exp (car (last-pair datum))))]
+         (parse-exp (cadar (last-pair datum))))]
       [(eqv? (1st datum) 'let)
        (if (symbol? (2nd datum)) ; named let
            (if (valid-named-let-exp? datum) 
