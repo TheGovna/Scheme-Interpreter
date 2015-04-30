@@ -61,6 +61,8 @@
     (else expression?)]
   [or-exp
     (conditions (list-of expression?))]
+  [begin-exp
+    (exps (list-of expression?))]
   [app-exp
     (rator expression?)
     (rand (list-of expression?))])
@@ -263,6 +265,9 @@
            (set-exp
              (2nd datum)
              (parse-exp (3rd datum))))]
+      [(eqv? (1st datum) 'begin)
+       (begin-exp
+         (map parse-exp (cdr datum)))]
       [(valid-app-exp? datum) 
        (app-exp 
          (parse-exp (1st datum))
@@ -359,24 +364,40 @@
       [set-exp (var expr) 
         exp]
       [app-exp (rator rands)
-        (begin (display exp) (newline) (display rands)
+        (begin ;(display exp) (newline) (display rands)
         (app-exp
           (syntax-expand rator)
           (map syntax-expand rands)))]
       [cond-exp (conditions expressions else)
-        (cond
-          [(and (null? conditions) (null? expressions))
-           (syntax-expand else)]
-          [else
-            (if-else-exp
-              (syntax-expand (car conditions))
-              (syntax-expand (car expressions))
-              (syntax-expand
-                (cond-exp
-                  (cdr conditions)
-                  (cdr expressions)
-                  else)))]
-          )]
+;        (cond
+;          [(and (null? conditions) (null? expressions))
+;           (syntax-expand else)]
+;          [else
+;            (if-else-exp
+;              (syntax-expand (car conditions))
+;              (syntax-expand (car expressions))
+;              (syntax-expand
+;                (cond-exp
+;                  (cdr conditions)
+;                  (cdr expressions)
+;                  else)))])
+        (syntax-expand (cond
+                         [(and (null? conditions) (null? expressions))
+                          else]
+                         [else
+                           (if-else-exp
+                             (car conditions)
+                             (car expressions)
+                             (cond-exp
+                               (cdr conditions)
+                               (cdr expressions)
+                               else))]))
+        ]
+      [begin-exp (exps)
+        (app-exp (lambda-list-exp
+                   '()
+                   (map syntax-expand exps))
+          '())]
       [or-exp (exps)
         (cond
           [(null? exps) #f]
@@ -595,7 +616,6 @@
       [(list->vector) (apply list->vector args)]
       [(list?) (apply list? args)]
       [(pair?) (apply pair? args)]
-      ;[(procedure?) (or (procedure? (car args)) (proc-val? (car args)))]
       [(procedure?) (proc-val? (car args))]
       [(vector->list) (apply vector->list args)]
       [(vector) (apply vector args)]
