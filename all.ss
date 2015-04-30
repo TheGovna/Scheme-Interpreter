@@ -381,7 +381,7 @@
     (let eval-bodies ([bodies bodies])
                       (if (null? (cdr bodies))
                           (eval-exp (car bodies) env)
-                          (begin (eval-exp (car bodies) env) (eval-bodies (cdr bodies))))
+                          (begin (eval-exp (car bodies) env) (eval-bodies (cdr bodies)))))))
     ;(let* [[reversed-bodies (reverse bodies)]
     ;       [result-bodies (map (lambda (x) (eval-exp x env)) reversed-bodies)]
     ;       [result (car result-bodies)]]
