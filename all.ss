@@ -52,9 +52,13 @@
     (id (list-of symbol?))
     (other symbol?)
     (body (list-of expression?))]
-  [set!-exp
+  [set-exp
     (var symbol?)
     (expr expression?)]
+  [cond-exp
+    (conditions (list-of expression?))
+    (exprs (list-of expression?))
+    (else expression?)]
   [app-exp
     (rator expression?)
     (rand (list-of expression?))])
@@ -85,17 +89,6 @@
     (other symbol?)
     (bodies (list-of expression?))
     (env environment?)])
-
-; datatype for slist 
-; TODO: delete this!
-(define-datatype slist slist?
-  [null-slist]
-  [car-symbol-slist
-    (car-slist symbol?)
-    (cdr-slist slist?)]
-  [car-slist-slist
-    (car-slist slist?)
-    (cdr-slist slist?)])
 	 	
 ; environment type definitions
 
@@ -177,6 +170,21 @@
           [other (caddr expr)]]
       (nest-lets vars other))))
 
+; Takes a cond expression and extracts the conditions
+(define get-cond-conditions
+  (lambda (exp)
+    (let loop [[exp exp]
+               [result '()]]
+      (cond
+        [(= (length exp) 1) result]
+        [loop (cdr exp) (cons (caar exp) result)]
+        ))))
+
+; Takes a cond expression and extracts the expressions to execute if its respective condition is true
+(define get-cond-exprs
+  (lambda (exp)
+    ()))
+
 (define parse-exp         
   (lambda (datum)
     (cond
@@ -212,6 +220,11 @@
                (if-exp ; if-then
                  (parse-exp (2nd datum))
                  (parse-exp (3rd datum)))))]
+      [(eqv? (1st datum) 'cond)
+       (cond-exp
+         (map parse-exp (get-cond-conditions (cdr datum)))
+         (map parse-exp (get-cond-exprs (cdr datum)))
+         (parse-exp (car (last-pair datum))))]
       [(eqv? (1st datum) 'let)
        (if (symbol? (2nd datum)) ; named let
            (if (valid-named-let-exp? datum) 
@@ -238,8 +251,8 @@
              (map (lambda (x) (parse-exp (2nd x))) (2nd datum))
              (map parse-exp (cddr datum))))]
       [(eqv? (1st datum) 'set!)
-       (if (valid-set!-exp? datum) 
-           (set!-exp
+       (if (valid-set-exp? datum) 
+           (set-exp
              (2nd datum)
              (parse-exp (3rd datum))))]
       [(valid-app-exp? datum) 
@@ -305,6 +318,7 @@
 
 (define syntax-expand
   (lambda (exp)
+    ;(display exp) (newline)
     (cases expression exp
       [var-exp (id) exp]
       [lit-exp (id) exp]
@@ -318,28 +332,30 @@
         (if-exp
           (syntax-expand condition)
           (syntax-expand true))]
+      [named-let-exp (name vars declarations bodies) exp]
       [let-exp (vars declarations bodies)
-        ]
-      [named-let-exp (name vars declarations bodies)]
-      [let*-exp (vars declarations bodies)]
-      [letrec-exp (vars declarations bodies)]
+        (syntax-expand
+          (app-exp     
+            (lambda-list-exp
+              vars
+              bodies)
+            declarations))] ; HEREEE!
+      [let*-exp (vars declarations bodies) exp]
+      [letrec-exp (vars declarations bodies) exp]
       [lambda-list-exp (id bodies)
         (lambda-list-exp
           id
-          (map syntax-expand bodies))] ; think this is right?
-      [lambda-single-exp (id bodies)
-        (lambda-single-exp
-          id
-          (map syntax-expand bodies))]
-      [lambda-improper-exp (id bodies)
-        (lambda-improper-exp
-          id
-          (map syntax-expand bodies))]
-      [set!-exp (var expr) exp]
-      [app-exp (rator rand)
+          (map syntax-expand bodies))] ; think this is right?      
+      [lambda-single-exp (id bodies) exp]      
+      [lambda-improper-exp (id other bodies) exp]
+      [set-exp (var expr) 
+        exp]
+      [app-exp (rator rands)
+        (begin (display exp) (newline) (display rands)
         (app-exp
           (syntax-expand rator)
-          (syntax-expand rand))]      
+          (map syntax-expand rands)))]
+            
       )))                                                                       
 
  ; #interpreter   
@@ -457,7 +473,7 @@
                  [new-env
                    (extend-env
                      new-ids
-                     (group-improper-args args (length new-ids)) ; HEREEE!!!!
+                     (group-improper-args args (length new-ids))
                      env)]]
             (eval-bodies bodies new-env))
           )]
@@ -482,7 +498,7 @@
 
 (define global-env init-env)
 
-; Some helpers
+; Some helpers to group arguments for improper lambdas
 (define split
   (lambda (args count)
     (let loop [[result '()] 
@@ -495,7 +511,8 @@
 
 (define group-improper-args
   (lambda (args length-ids)
-    (let loop [[result '()] [count 0]]
+    (let loop [[result '()] 
+               [count 0]]
       (cond
         [(eq? count (- length-ids 1)) (append result (list (split args count)))]
         [else (loop (append result (list (list-ref args count))) (+ count 1))]
@@ -560,8 +577,8 @@
       [(vector-set!) (apply vector-set! args)]
       [(display) (apply display args)]
       [(newline) (apply newline args)]
-      [(map) (map (lambda (x) (apply-proc (car args) (list x))) (cadr args))] ; fix?
-      [(apply) (apply-proc (car args) (cadr args))] ; fix?
+      [(map) (map (lambda (x) (apply-proc (car args) (list x))) (cadr args))]
+      [(apply) (apply-proc (car args) (cadr args))]
       [else (error 'apply-prim-proc 
             "Bad primitive procedure name: ~s" 
             prim-op)])))
@@ -700,7 +717,7 @@
       [else #t]
       )))
 
-(define valid-set!-exp?
+(define valid-set-exp?
   (lambda (lst)
     (cond
       [(or (< (length lst) 3) (> (length lst) 3))
