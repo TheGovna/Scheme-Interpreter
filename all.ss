@@ -56,13 +56,18 @@
     (var symbol?)
     (expr expression?)]
   [cond-exp
-    (conditions (list-of expression?))
-    (exprs (list-of expression?))
+    (lefts (list-of expression?))
+    (rights (list-of expression?))
     (else expression?)]
   [or-exp
     (conditions (list-of expression?))]
   [begin-exp
     (exps (list-of expression?))]
+  [case-exp
+    (expr expression?)
+    (lefts (list-of expression?))
+    (rights (list-of expression?))
+    (else expression?)]
   [app-exp
     (rator expression?)
     (rand (list-of expression?))])
@@ -138,44 +143,8 @@
   (lambda (obj list)
     (not (not (member obj list)))))
 
-; Takes a let expression and converts it to lambdas
-; Ex:
-; > (let->application '(let [[a 1]
-;                            [b 2]] 
-;                        (let [[c 3]
-;                              [d 4]]
-;                          (+ a b c d))))
-; > ((lambda (a b) ((lambda (c d) (+ a b c d)) 3 4)) 1 2)
-(define let->application
-  (lambda (expr)
-    (cond
-      [(or (symbol? expr) (not (eqv? 'let (car expr))))
-       expr]
-      [else
-        (let [[args (map cadr (cadr expr))]
-              [vars (map car (cadr expr))]] 
-          (cons (list 'lambda vars (let->application (caddr expr))) args))
-        ])))
-
-(define nest-lets
-  (lambda (vars other)
-    (if (= (length vars) 1) (list 'let vars other)
-        (list 'let (list (car vars)) (nest-lets (cdr vars) other)))))
-
-; Takes a let* expression and converts it to lets
-; Ex:
-; > (let*->let '(let* [[a 1]
-;                      [b (* a 2)]] 
-;                 (+ a b)))
-; > (let ([a 1]) (let ([b (* a 2)]) (+ a b)))
-(define let*->let
-  (lambda (expr)
-    (let [[vars (cadr expr)]
-          [other (caddr expr)]]
-      (nest-lets vars other))))
-
-; Takes a cond expression and extracts the conditions
-(define get-cond-conditions
+; Takes a list-of expression and extracts the lefts of each expression
+(define get-lefts
   (lambda (exp)
     (let loop [[exp exp]
                [result '()]]
@@ -185,8 +154,8 @@
         [else (loop (cdr exp) (append result (list (caar exp))))]
         ))))
 
-; Takes a cond expression and extracts the expressions to execute if its respective condition is true
-(define get-cond-exprs
+; Takes a list-of expression and extracts the else part (presumably last)
+(define get-rights
   (lambda (exp)
     (let loop [[exp exp]
                [result '()]]
@@ -232,8 +201,8 @@
                  (parse-exp (3rd datum)))))]
       [(eqv? (1st datum) 'cond)
        (cond-exp
-         (map parse-exp (get-cond-conditions (cdr datum)))
-         (map parse-exp (get-cond-exprs (cdr datum)))
+         (map parse-exp (get-lefts (cdr datum)))
+         (map parse-exp (get-rights (cdr datum)))
          (parse-exp (cadar (last-pair datum))))]
       [(eqv? (1st datum) 'let)
        (if (symbol? (2nd datum)) ; named let
@@ -268,6 +237,12 @@
       [(eqv? (1st datum) 'begin)
        (begin-exp
          (map parse-exp (cdr datum)))]
+      [(eqv? (1st datum) 'case)
+       (case-exp
+         (parse-exp (2nd datum))
+         (map parse-exp (get-lefts (cddr datum)))
+         (map parse-exp (get-rights (cddr datum)))
+         (parse-exp (cadar (last-pair datum))))]
       [(valid-app-exp? datum) 
        (app-exp 
          (parse-exp (1st datum))
@@ -398,6 +373,19 @@
                    '()
                    (map syntax-expand exps))
           '())]
+;      [case-exp (expr lefts rights else)
+;        (let [[temp (generate-random-symbol)]] 
+;          ((let-exp
+;             temp
+;             expr
+;             (if-else-exp
+;               () ; HEREEE
+;               (syntax-expand (car rights))
+;               (syntax-expand (case-exp
+;                                expr
+;                                (cdr lefts)
+;                                (cdr rights)
+;                                else))))))]
       [or-exp (exps)
         (cond
           [(null? exps) #f]
@@ -409,7 +397,12 @@
                   (or-exp (cdr exps))))
           ]
         )]  
-      )))                                                                       
+      )))
+
+; generates a random symbol
+(define generate-random-symbol
+  (lambda ()
+    (string->symbol (string-append "temp" (number->string (random 100000))))))                                                                       
 
  ; #interpreter   
  ;  _____       _                           _            
