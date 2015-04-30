@@ -405,7 +405,7 @@
           [(null? exps) (lit-exp #f)]
           [(null? (cdr exps)) (car exps)]
           [else
-            (let-exp (var-exp 'temp) (list (car exps))
+            (let-exp (list 'temp) (list (car exps))
               (list (if-else-exp (var-exp 'temp)
                   (var-exp 'temp)
                   (syntax-expand (or-exp (cdr exps))))))
