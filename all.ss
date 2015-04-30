@@ -177,13 +177,18 @@
                [result '()]]
       (cond
         [(= (length exp) 1) result]
-        [loop (cdr exp) (cons (caar exp) result)]
+        [else (loop (cdr exp) (cons (caar exp) result))]
         ))))
 
 ; Takes a cond expression and extracts the expressions to execute if its respective condition is true
 (define get-cond-exprs
   (lambda (exp)
-    ()))
+    (let loop [[exp exp]
+               [result '()]]
+      (cond
+        [(= (length exp) 1) result]
+        [else (loop (cdr exp) (append result (list (cadar exp))))]
+        ))))
 
 (define parse-exp         
   (lambda (datum)
