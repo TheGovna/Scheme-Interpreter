@@ -346,7 +346,7 @@
             (lambda-list-exp
               vars
               bodies)
-            declarations))] ; HEREEE!
+            declarations))]
       [let*-exp (vars declarations bodies) exp]
       [letrec-exp (vars declarations bodies) exp]
       [lambda-list-exp (id bodies)
@@ -362,7 +362,20 @@
         (app-exp
           (syntax-expand rator)
           (map syntax-expand rands)))]
-      [cond-exp (exp1 exp2 exp3) exp1]
+      [cond-exp (conditions expressions else)
+        (cond
+          [(and (null? conditions) (null? expressions))
+           (syntax-expand else)]
+          [else
+            (if-else-exp
+              (syntax-expand (car conditions))
+              (syntax-expand (car expressions))
+              (syntax-expand
+                (cond-exp
+                  (cdr conditions)
+                  (cdr expressions)
+                  else)))]
+          )]
       [or-exp (exps)
         (cond
           [(null? exps) #f]
