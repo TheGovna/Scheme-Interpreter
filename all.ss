@@ -378,7 +378,7 @@
 ; let's hope Claude only does this thing only in Chez Scheme
 (define eval-bodies
   (lambda (bodies env)
-    (let eval-bodies ([bodies bodies] [(env env)])
+    (let eval-bodies ([bodies bodies])
                       (if (null? (cdr bodies))
                           (eval-exp (car bodies) env)
                           (begin (eval-exp (car bodies) env) (eval-bodies (cdr bodies))))
