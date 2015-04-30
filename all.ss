@@ -362,13 +362,14 @@
         (app-exp
           (syntax-expand rator)
           (map syntax-expand rands)))]
+      [cond-exp (exp1 exp2 exp3) exp1]
       [or-exp (exps)
         (cond
           [(null? exps) #f]
           [(null? (cdr exps)) (syntax-expand (car exps))]
           [else
-            (let ([temp (syntax-expand (car exps))])
-              (if temp
+            (let-exp ([temp (syntax-expand (car exps))])
+              (if-exp temp
                   temp
                   (or-exp (cdr exps))))
           ]
