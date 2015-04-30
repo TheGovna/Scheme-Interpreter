@@ -59,6 +59,8 @@
     (conditions (list-of expression?))
     (exprs (list-of expression?))
     (else expression?)]
+  [or-exp
+    (conditions (list-of expression))]
   [app-exp
     (rator expression?)
     (rand (list-of expression?))])
@@ -355,7 +357,8 @@
         (app-exp
           (syntax-expand rator)
           (map syntax-expand rands)))]
-            
+      ;[or-exp (exps)
+      ;  ()]   
       )))                                                                       
 
  ; #interpreter   
