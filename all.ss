@@ -362,10 +362,14 @@
 ; let's hope Claude only does this thing only in Chez Scheme
 (define eval-bodies
   (lambda (bodies env)
-    (let* [[reversed-bodies (reverse bodies)]
-           [result-bodies (map (lambda (x) (eval-exp x env)) reversed-bodies)]
-           [result (car result-bodies)]]
-      result)))
+    (let eval-bodies ([bodies bodies] [(env env)])
+                      (if (null? (cdr bodies))
+                          (eval-exp (car bodies) env)
+                          (begin (eval-exp (car bodies) env) (eval-bodies (cdr bodies))))
+    ;(let* [[reversed-bodies (reverse bodies)]
+    ;       [result-bodies (map (lambda (x) (eval-exp x env)) reversed-bodies)]
+    ;       [result (car result-bodies)]]
+    ;  result)))
 
 ; eval-exp is the main component of the interpreter
 
