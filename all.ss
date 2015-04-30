@@ -179,7 +179,8 @@
                [result '()]]
       (cond
         [(= (length exp) 1) result]
-        [else (loop (cdr exp) (cons (caar exp) result))]
+        ;[else (loop (cdr exp) (cons (caar exp) result))]
+        [else (loop (cdr exp) (append result (list (caar exp))))]
         ))))
 
 ; Takes a cond expression and extracts the expressions to execute if its respective condition is true
@@ -624,7 +625,7 @@
       (rep))))  ; tail-recursive, so stack doesn't grow.
 
 (define eval-one-exp
-  (lambda (x) (top-level-eval (parse-exp x))))
+  (lambda (x) (top-level-eval (syntax-expand (parse-exp x)))))
 
  ; #error checking
  ;  ______                        _____ _               _    _             
