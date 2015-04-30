@@ -262,6 +262,8 @@
            (set-exp
              (2nd datum)
              (parse-exp (3rd datum))))]
+      [(eqv? (1st datum) 'or)
+        (or-exp (map parse-exp (cdr datum)))]
       [(valid-app-exp? datum) 
        (app-exp 
          (parse-exp (1st datum))
@@ -365,16 +367,16 @@
       [cond-exp (exp1 exp2 exp3) exp1]
       [or-exp (exps)
         (cond
-          [(null? exps) #f]
-          [(null? (cdr exps)) (syntax-expand (car exps))]
+          [(null? exps) (lit-exp #f)]
+          [(null? (cdr exps)) (car exps)]
           [else
-            (let-exp ([temp (syntax-expand (car exps))])
-              (if-exp temp
-                  temp
-                  (or-exp (cdr exps))))
+            (let-exp (var-exp 'temp) (list (car exps))
+              (list (if-else-exp (var-exp 'temp)
+                  (var-exp 'temp)
+                  (syntax-expand (or-exp (cdr exps))))))
           ]
-        )]  
-      )))                                                                       
+        )]
+      )))                                                                      
 
  ; #interpreter   
  ;  _____       _                           _            
