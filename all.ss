@@ -400,7 +400,8 @@
                             (loop (cdr lefts) (cdr rights))
                             else))))))))]
       
-      
+      [while-exp (condition exps)
+        exps]
       
       
       [or-exp (exps)
@@ -412,7 +413,8 @@
               (let-exp (list temp) (list (car exps))
               (list (if-else-exp (var-exp temp)
                       (var-exp temp)
-                      (syntax-expand (or-exp (cdr exps))))))]))]
+                      (syntax-expand (or-exp (cdr exps))))))]
+              ))]
       )))
                                                                        
 (define member?
@@ -653,7 +655,8 @@
   (lambda ()
     (display "--> ")
     ;; notice that we don't save changes to the environment...
-    (let ([answer (top-level-eval (parse-exp (read)))])
+    ;(let ([answer (top-level-eval (parse-exp (read)))]) ; I think this should be eval-one-exp
+    (let ([answer (eval-one-exp (read))])
       ;; TODO: are there answers that should display differently?
       (eopl:pretty-print answer) (newline)
       (rep))))  ; tail-recursive, so stack doesn't grow.
