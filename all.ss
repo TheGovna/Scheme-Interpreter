@@ -242,7 +242,7 @@
       [(eqv? (1st datum) 'case)
        (case-exp
          (parse-exp (2nd datum))
-         (map parse-exp (get-lefts (cddr datum)))
+         (map quoted-exp (get-lefts (cddr datum)))
          (map parse-exp (get-rights (cddr datum)))
          (parse-exp (cadar (last-pair datum))))]
       [(valid-app-exp? datum) 
@@ -375,31 +375,41 @@
                    '()
                    (map syntax-expand exps))
           '())]
-;      [case-exp (expr lefts rights else)
-;        (let [[temp (generate-random-symbol)]] 
-;          ((let-exp
-;             temp
-;             expr
-;             (if-else-exp
-;               () ; HEREEE
-;               (syntax-expand (car rights))
-;               (syntax-expand (case-exp
-;                                expr
-;                                (cdr lefts)
-;                                (cdr rights)
-;                                else))))))]
+      [case-exp (expr lefts rights else)
+        (syntax-expand 
+          (if (null? lefts) 
+              (begin-exp (list expr else))
+              (let [[temp (generate-random-symbol)]]
+                (let-exp
+                  (list temp)
+                  (list expr)
+                  (list
+                    (let loop [[lefts lefts] [rights rights]]
+                      (if-else-exp
+                        (app-exp (var-exp 'member?) (list (var-exp temp) (car lefts)))
+                        (car rights)
+                        (if (not (null? (cdr lefts)))
+                            (loop (cdr lefts) (cdr rights))
+                            else))))))))]
+      
+      
+      
+      
       [or-exp (exps)
-        (cond
-          [(null? exps) (lit-exp #f)]
-          [(null? (cdr exps)) (car exps)]
-          [else
-            (let-exp (list 'temp) (list (car exps))
-              (list (if-else-exp (var-exp 'temp)
-                  (var-exp 'temp)
-                  (syntax-expand (or-exp (cdr exps))))))
-          ]
-        )]  
+        (let [[temp (generate-random-symbol)]]
+          (cond
+            [(null? exps) (lit-exp #f)]
+            [(null? (cdr exps)) (car exps)]
+            [else
+              (let-exp (list temp) (list (car exps))
+              (list (if-else-exp (var-exp temp)
+                      (var-exp temp)
+                      (syntax-expand (or-exp (cdr exps))))))]))]
       )))
+                                                                       
+(define member?
+  (lambda (obj list)
+    (not (not (member obj list)))))
 
 ; generates a random symbol
 (define generate-random-symbol
@@ -535,7 +545,7 @@
                             cdddr list null? assq eq? equal? atom? length list->vector
                             list? pair? procedure? vector->list vector make-vector
                             vector-ref vector? number? symbol? set-car! set-cdr!
-                            vector-set! display newline map apply))
+                            vector-set! display newline map apply member?))
 
 (define init-env         ; for now, our initial global environment only contains 
   (extend-env            ; procedure names.  Recall that an environment associates
@@ -626,6 +636,7 @@
       [(newline) (apply newline args)]
       [(map) (map (lambda (x) (apply-proc (car args) (list x))) (cadr args))]
       [(apply) (apply-proc (car args) (cadr args))]
+      [(member?) (apply member? (car args) (cdr args))]
       [else (error 'apply-prim-proc 
             "Bad primitive procedure name: ~s" 
             prim-op)])))
