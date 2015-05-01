@@ -68,6 +68,9 @@
     (lefts (list-of expression?))
     (rights (list-of expression?))
     (else expression?)]
+  [while-exp
+    (condition expression?)
+    (expr (list-of expression?))]
   [app-exp
     (rator expression?)
     (rand (list-of expression?))])
@@ -139,11 +142,12 @@
           (loop (cdr lst)) 
           lst))))
 
+; Takes an object to check and a list. Returns true if obj is in the list, false otherwise
 (define member?
   (lambda (obj list)
     (not (not (member obj list)))))
 
-; Takes a list-of expression and extracts the lefts of each expression
+; Takes a list-of expression and extracts the lefts of each expression except the last
 (define get-lefts
   (lambda (exp)
     (let loop [[exp exp]
@@ -154,7 +158,7 @@
         [else (loop (cdr exp) (append result (list (caar exp))))]
         ))))
 
-; Takes a list-of expression and extracts the else part (presumably last)
+; Takes a list-of expression and extracts the rights of each expression except the last
 (define get-rights
   (lambda (exp)
     (let loop [[exp exp]
@@ -245,6 +249,10 @@
          (map quoted-exp (get-lefts (cddr datum)))
          (map parse-exp (get-rights (cddr datum)))
          (parse-exp (cadar (last-pair datum))))]
+      [(eqv? (1st datum) 'while)
+       (while-exp
+         (parse-exp (2nd datum))
+         (map parse-exp (cddr datum)))]
       [(valid-app-exp? datum) 
        (app-exp 
          (parse-exp (1st datum))
