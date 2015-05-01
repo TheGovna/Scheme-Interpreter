@@ -70,7 +70,7 @@
     (else expression?)]
   [while-exp
     (condition expression?)
-    (expr (list-of expression?))]
+    (exprs (list-of expression?))]
   [app-exp
     (rator expression?)
     (rand (list-of expression?))])
@@ -354,18 +354,6 @@
           (syntax-expand rator)
           (map syntax-expand rands)))]
       [cond-exp (conditions expressions else)
-;        (cond
-;          [(and (null? conditions) (null? expressions))
-;           (syntax-expand else)]
-;          [else
-;            (if-else-exp
-;              (syntax-expand (car conditions))
-;              (syntax-expand (car expressions))
-;              (syntax-expand
-;                (cond-exp
-;                  (cdr conditions)
-;                  (cdr expressions)
-;                  else)))])
         (syntax-expand (cond
                          [(and (null? conditions) (null? expressions))
                           else]
@@ -376,8 +364,7 @@
                              (cond-exp
                                (cdr conditions)
                                (cdr expressions)
-                               else))]))
-        ]
+                               else))]))]
       [begin-exp (exps)
         (app-exp (lambda-list-exp
                    '()
@@ -399,10 +386,20 @@
                         (if (not (null? (cdr lefts)))
                             (loop (cdr lefts) (cdr rights))
                             else))))))))]
-      
-      
-      
-      
+      [while-exp (condition exprs)
+        (begin ;(display condition) (newline) (display exprs)
+        (let [[temp (generate-random-symbol)]]
+          (syntax-expand
+            (let-exp
+              (list 'x)
+              (list (lambda-list-exp
+                 (list temp)
+                 (list (if-exp
+                    (app-exp condition '())
+                    (begin-exp
+                      (append exprs
+                        (list (app-exp (var-exp temp) (list (var-exp temp))))))))))
+              (list (app-exp (var-exp 'x) (list (var-exp 'x))))))))]      
       [or-exp (exps)
         (let [[temp (generate-random-symbol)]]
           (cond
@@ -553,7 +550,7 @@
                             cdddr list null? assq eq? equal? atom? length list->vector
                             list? pair? procedure? vector->list vector make-vector
                             vector-ref vector? number? symbol? set-car! set-cdr!
-                            vector-set! display newline map apply member?))
+                            vector-set! display newline map apply member? quotient))
 
 (define init-env         ; for now, our initial global environment only contains 
   (extend-env            ; procedure names.  Recall that an environment associates
@@ -645,6 +642,7 @@
       [(map) (map (lambda (x) (apply-proc (car args) (list x))) (cadr args))]
       [(apply) (apply-proc (car args) (cadr args))]
       [(member?) (apply member? (car args) (cdr args))]
+      [(quotient) (apply / (car args) (cdr args))]
       [else (error 'apply-prim-proc 
             "Bad primitive procedure name: ~s" 
             prim-op)])))
