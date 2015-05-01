@@ -395,7 +395,7 @@
               (list (lambda-list-exp
                  (list temp)
                  (list (if-exp
-                    (app-exp condition '())
+                    condition
                     (begin-exp
                       (append exprs
                         (list (app-exp (var-exp temp) (list (var-exp temp))))))))))
@@ -443,13 +443,9 @@
 (define eval-bodies
   (lambda (bodies env)
     (let eval-bodies ([bodies bodies])
-                      (if (null? (cdr bodies))
-                          (eval-exp (car bodies) env)
-                          (begin (eval-exp (car bodies) env) (eval-bodies (cdr bodies)))))))
-    ;(let* [[reversed-bodies (reverse bodies)]
-    ;       [result-bodies (map (lambda (x) (eval-exp x env)) reversed-bodies)]
-    ;       [result (car result-bodies)]]
-    ;  result)))
+      (if (null? (cdr bodies))
+          (eval-exp (car bodies) env)
+          (begin (eval-exp (car bodies) env) (eval-bodies (cdr bodies)))))))
 
 ; eval-exp is the main component of the interpreter
 
@@ -643,7 +639,7 @@
       [(map) (map (lambda (x) (apply-proc (car args) (list x))) (cadr args))]
       [(apply) (apply-proc (car args) (cadr args))]
       [(member?) (apply member? (car args) (cdr args))]
-      [(quotient) (apply / (car args) (cdr args))]
+      [(quotient) (apply quotient args)]
       [else (error 'apply-prim-proc 
             "Bad primitive procedure name: ~s" 
             prim-op)])))
@@ -798,4 +794,86 @@
     (cond
       [(not (null? (cdr num))) (eopl:error 'zero? "incorrect argument count in call zero? ~s" lst)]
       [else #t]
-      )))                                                                           
+      )))
+  
+; UNPARSER
+  (define combine-lefts-rights
+    (lambda (lefts rights)
+      (map (lambda (x y)
+             (list x y)) 
+        lefts rights)))
+  
+  (define unparse-exp
+  (lambda (exp)
+    (cases expression exp
+      [var-exp (id) id]
+      [lit-exp (id) id]
+      [quoted-exp (id) id]
+      [if-else-exp (condition true false)
+        (list 'if (unparse-exp condition) 
+          (unparse-exp true) 
+          (unparse-exp false))]
+      [if-exp (condition true) 
+        (list 'if (unparse-exp condition)
+          (unparse-exp true))]
+      [cond-exp (lefts rights else)
+        (append 
+          (list 'cond)
+          (combine-lefts-rights lefts rights)
+          'else (unparse-exp else))]
+      [or-exp (exprs)
+        (append (list 'or) (exprs))]
+      [begin-exp (exprs) (list 'BEGIN)]
+      [case-exp (cond lefts rights else) (list 'CASE)]
+      [while-exp (condition exprs) (list 'WHILE)]
+      [let-exp (vars declarations body)
+        (let [[unparsed-body (map unparse-exp body)]
+              [let-with-vars (list 'let
+                               (map (lambda (x y) 
+                                      (list x (unparse-exp y))) vars declarations))]]
+          (append let-with-vars unparsed-body))
+        ]
+      [named-let-exp (name vars declarations body)
+        (let [[unparsed-body (map unparse-exp body)]
+              [let-with-vars (list 'let name
+                               (map (lambda (x y) 
+                                      (list x (unparse-exp y))) vars declarations))]]
+          (append let-with-vars unparsed-body))
+        ]
+      [let*-exp (vars declarations body)
+        (let [[unparsed-body (map unparse-exp body)]
+               [let-with-vars (list 'let*
+                                (map (lambda (x y) 
+                                       (list x (unparse-exp y))) vars declarations))]]
+          (append let-with-vars unparsed-body))
+        ]
+      [letrec-exp (vars declarations body)
+        (let [[unparsed-body (map unparse-exp body)]
+              [let-with-vars (list 'letrec
+                               (map (lambda (x y) 
+                                      (list x (unparse-exp y))) vars declarations))]]
+          (append let-with-vars unparsed-body))
+        ]
+      [lambda-list-exp (id body)
+        (let [[unparsed-body (map unparse-exp body)]
+              [lambda-with-vars (list 'lambda id)]]
+          (append lambda-with-vars unparsed-body))
+        ]
+      [lambda-single-exp (id body)
+        (let [[unparsed-body (map unparse-exp body)]
+              [lambda-with-vars (list 'lambda id)]]
+          (append lambda-with-vars unparsed-body))
+        ]
+      [lambda-improper-exp (id other body)
+        (let [[unparsed-body (map unparse-exp body)]
+              [lambda-with-vars (list 'lambda (append id other))]]
+          (append lambda-with-vars unparsed-body))
+        ]
+      [set-exp (var expr)
+        (list 'set! var
+          (unparse-exp expr))]
+      [app-exp (rator rand)
+        (let [[unparsed-rand (map unparse-exp rand)]
+              [app-with-rator (list (unparse-exp rator))]]
+        (append app-with-rator unparsed-rand))]
+      )))
