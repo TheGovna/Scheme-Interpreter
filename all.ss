@@ -367,11 +367,11 @@
               vars
               (map lit-exp (make-list-of #f (length vars)))
                 (list (let-exp                    
-                        (map var-exp random-symbols)
+                        random-symbols
                         declarations
                         (append 
                           (map (lambda (var temp)
-                                 (set!-exp var temp)) vars random-symbols)
+                                 (set!-exp var (var-exp temp))) vars random-symbols)
                           (list (begin-exp bodies))))))))]
       [lambda-list-exp (id bodies)
         (lambda-list-exp
