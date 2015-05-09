@@ -349,7 +349,9 @@
         (if-exp
           (syntax-expand condition)
           (syntax-expand true))]
-      [named-let-exp (name vars declarations bodies) exp]
+      [named-let-exp (name vars declarations bodies)
+        (syntax-expand
+          (letrec-exp (list name) (list (lambda-exp vars bodies)) (cons name declarations)))]
       [let-exp (vars declarations bodies)
         (syntax-expand
           (app-exp     
@@ -543,17 +545,17 @@
       [set!-exp (var expr)
         (set-ref!
           (apply-env-ref env 
-            id
+            var
             (lambda (x) x)
             (lambda ()
               (apply-env-ref
                 global-env
-                id
+                var
                 (lambda (x) x)
                 (lambda ()
                   (eopl:error 'apply-env-ref
                     "variable not found in environment: ~s"
-                    id)))))
+                     var)))))
           (eval-exp expr env))]
       [else (eopl:error 'eval-exp "Bad abstract syntax: ~a" exp)])))
 
