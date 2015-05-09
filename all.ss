@@ -52,7 +52,7 @@
     (id (list-of symbol?))
     (other symbol?)
     (body (list-of expression?))]
-  [set-exp
+  [set!-exp
     (var symbol?)
     (expr expression?)]
   [cond-exp
@@ -79,7 +79,7 @@
   (empty-env-record)
   (extended-env-record
     (syms (list-of symbol?))
-    (vals (list-of scheme-value?))
+    (vals (list-of box?))
     (env environment?)))
 
 ; datatype for procedures.  At first there is only one
@@ -234,8 +234,8 @@
              (map (lambda (x) (parse-exp (2nd x))) (2nd datum))
              (map parse-exp (cddr datum))))]
       [(eqv? (1st datum) 'set!)
-       (if (valid-set-exp? datum) 
-           (set-exp
+       (if (valid-set!-exp? datum) 
+           (set!-exp
              (2nd datum)
              (parse-exp (3rd datum))))]
       [(eqv? (1st datum) 'or)
@@ -277,7 +277,7 @@
 (define extend-env
   (lambda (syms vals env)
     (begin ;(display '(*** extend-env ***)) (newline) (display '-syms:) (display syms) (newline) (display '-vals:) (display vals) (newline) (display '-env:) (display env) (newline) (newline)
-      (extended-env-record syms vals env))))
+      (extended-env-record syms (map box vals) env))))
 
 (define list-find-position
   (lambda (sym los)
@@ -294,16 +294,34 @@
                		 #f))))))
 
 (define apply-env
-  (lambda (env sym succeed fail) ; succeed and fail are procedures applied if the var is or isn't found, respectively.
-    (cases environment env
+ ; (lambda (env sym succeed fail) ; succeed and fail are procedures applied if the var is or isn't found, respectively.
+ ;   (cases environment env
+ ;     (empty-env-record ()
+ ;       (fail))
+ ;     (extended-env-record (syms vals env)
+	;(let ((pos (list-find-position sym syms)))
+ ;     	  (if (number? pos)
+	;      (succeed (deref (list-ref vals pos)))
+	;      (apply-env env sym succeed fail)))))))
+  (lambda (env sym succeed fail)
+    (deref (apply-env-ref env sym succeed fail))))
+
+
+(define (apply-env-ref env sym succeed fail)
+  (cases environment env
       (empty-env-record ()
         (fail))
       (extended-env-record (syms vals env)
-	(let ((pos (list-find-position sym syms)))
-      	  (if (number? pos)
-	      (succeed (list-ref vals pos))
-	      (apply-env env sym succeed fail)))))))
+  (let ((pos (list-find-position sym syms)))
+          (if (number? pos)
+        (succeed (list-ref vals pos))
+        (apply-env-ref env sym succeed fail))))))
 
+(define (deref ref)
+  (unbox ref))
+
+(define (set-ref! ref value)
+  (set-box! ref value))
  ; #syntax expander
  ;   _____             _               ______                            _           
  ;  / ____|           | |             |  ____|                          | |          
@@ -346,7 +364,7 @@
           (map syntax-expand bodies))] ; think this is right?      
       [lambda-single-exp (id bodies) exp]      
       [lambda-improper-exp (id other bodies) exp]
-      [set-exp (var expr) 
+      [set!-exp (var expr) 
         exp]
       [app-exp (rator rands)
         (begin ;(display exp) (newline) (display rands)
@@ -464,8 +482,8 @@
               id
               (lambda (x) x)
               (lambda () (eopl:error 'apply-env ; procedure to call if id not in env
-		          "variable not found in environment: ~s"
-			   id)))
+                        		         "variable not found in environment: ~s"
+			                               id)))
             ))]
       [quoted-exp (id) id]
       [if-else-exp (condition true false)
@@ -493,6 +511,21 @@
         (closure-single-arg id bodies env)]
       [lambda-improper-exp (ids other bodies)
         (closure-improper-args ids other bodies env)]
+      [set!-exp (var expr)
+        (set-ref!
+          (apply-env-ref env 
+                         id
+                         (lambda (x) x)
+                         (lambda ()
+                            (apply-env-ref
+                              global-env
+                              id
+                              (lambda (x) x)
+                              (lambda ()
+                                (eopl:error 'apply-env-ref
+                                            "variable not found in environment: ~s"
+                                            id)))))
+          (eval-exp expr env))]
       [else (eopl:error 'eval-exp "Bad abstract syntax: ~a" exp)])))
 
 ; evaluate the list of operands, putting results into a list
@@ -552,8 +585,9 @@
 (define init-env         ; for now, our initial global environment only contains 
   (extend-env            ; procedure names.  Recall that an environment associates
      *prim-proc-names*   ;  a value (not an expression) with an identifier.
-     (map prim-proc      
-          *prim-proc-names*)
+     (map box
+      (map prim-proc      
+          *prim-proc-names*))
      (empty-env)))
 
 (define global-env init-env)
@@ -779,7 +813,7 @@
       [else #t]
       )))
 
-(define valid-set-exp?
+(define valid-set!-exp?
   (lambda (lst)
     (cond
       [(or (< (length lst) 3) (> (length lst) 3))
@@ -869,7 +903,7 @@
               [lambda-with-vars (list 'lambda (append id other))]]
           (append lambda-with-vars unparsed-body))
         ]
-      [set-exp (var expr)
+      [set!-exp (var expr)
         (list 'set! var
           (unparse-exp expr))]
       [app-exp (rator rand)
