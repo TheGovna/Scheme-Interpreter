@@ -358,7 +358,19 @@
               bodies)
             declarations))]
       [let*-exp (vars declarations bodies) exp]
-      [letrec-exp (vars declarations bodies) exp]
+      [letrec-exp (vars declarations bodies) ; HEREE
+        (let [[random-symbols (make-list-of-random-symbols (length vars))]]
+          (syntax-expand
+            (let-exp
+              vars
+              (map lit-exp (make-list-of #f (length vars)))
+                (list (let-exp                    
+                        (map var-exp random-symbols)
+                        declarations
+                        (append 
+                          (map (lambda (var temp)
+                                 (set!-exp var temp)) vars random-symbols)
+                          (list (begin-exp bodies))))))))]
       [lambda-list-exp (id bodies)
         (lambda-list-exp
           id
@@ -435,6 +447,22 @@
 (define member?
   (lambda (obj list)
     (not (not (member obj list)))))
+
+(define make-list-of
+  (lambda (obj size)
+    (let loop [[size size]
+               [result '()]]
+      (if (eq? size 0)
+          result
+          (loop (- size 1) (cons obj result))))))                                                                       
+
+(define make-list-of-random-symbols
+  (lambda (size)
+    (let loop [[size size]
+               [result '()]]
+      (if (eq? size 0)
+          result
+          (loop (- size 1) (cons (generate-random-symbol) result))))))                                                                       
 
 ; generates a random symbol
 (define generate-random-symbol
