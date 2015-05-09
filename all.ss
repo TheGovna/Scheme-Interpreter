@@ -351,7 +351,7 @@
           (syntax-expand true))]
       [named-let-exp (name vars declarations bodies)
         (syntax-expand
-          (letrec-exp (list name) (list (lambda-exp vars bodies)) (cons name declarations)))]
+          (letrec-exp (list name) (list (lambda-list-exp vars bodies)) (list (app-exp (var-exp name) declarations))))]
       [let-exp (vars declarations bodies)
         (syntax-expand
           (app-exp     
@@ -553,7 +553,12 @@
                 var
                 (lambda (x) x)
                 (lambda ()
-                  (extend-env (list var) (list (eval-exp expr env)) env)))))
+                  (call/cc
+                    (lambda (k)
+                      (extend-env 
+                        (list var)
+                        (list (eval-exp expr env))
+                        env)))))))
           (eval-exp expr env))]
       [else (eopl:error 'eval-exp "Bad abstract syntax: ~a" exp)])))
 
@@ -606,10 +611,10 @@
 
 (define *prim-proc-names* '(+ - * / add1 sub1 zero? not cons = < > <= >= car cdr caar
                             cadr cdar cddr caaar caadr cadar caddr cdaar cdadr cddar
-                            cdddr list null? assq eq? equal? atom? length list->vector
+                            cdddr list append null? assq eq? eqv? equal? atom? length list->vector
                             list? pair? procedure? vector->list vector make-vector
                             vector-ref vector? number? symbol? set-car! set-cdr!
-                            vector-set! display newline map apply member? quotient))
+                            vector-set! display newline list-tail map apply member? quotient))
 
 (define init-env         ; for now, our initial global environment only contains 
   (extend-env            ; procedure names.  Recall that an environment associates
@@ -677,9 +682,11 @@
       [(cddar) (apply cddar args)]
       [(cdddr) (apply cdddr args)]
       [(list) (apply list args)]
+      [(append) (apply append args)]
       [(null?) (apply null? args)]
       [(assq) (apply assq args)]
       [(eq?) (apply eq? args)]
+      [(eqv?) (apply eqv? args)]
       [(equal?) (apply equal? args)]
       [(atom?) (apply atom? args)]
       [(length) (apply length args)]
@@ -700,6 +707,7 @@
       [(display) (apply display args)]
       [(newline) (apply newline args)]
       [(map) (map (lambda (x) (apply-proc (car args) (list x))) (cadr args))]
+      [(list-tail) (list-tail (car args) (cadr args))]
       [(apply) (apply-proc (car args) (cadr args))]
       [(member?) (apply member? (car args) (cdr args))]
       [(quotient) (apply quotient args)]
