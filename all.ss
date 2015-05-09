@@ -525,9 +525,7 @@
                 var
                 (lambda (x) x)
                 (lambda ()
-                  (eopl:error 'apply-env-ref
-                    "variable not found in environment: ~s"
-                     var)))))
+                  (extend-env (list var) (list (eval-exp expr env)) env)))))
           (eval-exp expr env))]
       [else (eopl:error 'eval-exp "Bad abstract syntax: ~a" exp)])))
 
