@@ -293,7 +293,7 @@
                		 (+ 1 list-index-r)
                		 #f))))))
 
-(define apply-env
+ ;(define apply-env
  ; (lambda (env sym succeed fail) ; succeed and fail are procedures applied if the var is or isn't found, respectively.
  ;   (cases environment env
  ;     (empty-env-record ()
@@ -303,19 +303,20 @@
  ;     	  (if (number? pos)
 	;      (succeed (deref (list-ref vals pos)))
 	;      (apply-env env sym succeed fail)))))))
+(define apply-env
   (lambda (env sym succeed fail)
     (deref (apply-env-ref env sym succeed fail))))
 
 
 (define (apply-env-ref env sym succeed fail)
   (cases environment env
-      (empty-env-record ()
-        (fail))
-      (extended-env-record (syms vals env)
-  (let ((pos (list-find-position sym syms)))
-          (if (number? pos)
-        (succeed (list-ref vals pos))
-        (apply-env-ref env sym succeed fail))))))
+    (empty-env-record ()
+      (fail))
+    (extended-env-record (syms vals env)
+      (let ((pos (list-find-position sym syms)))
+        (if (number? pos)
+            (succeed (list-ref vals pos))
+            (apply-env-ref env sym succeed fail))))))
 
 (define (deref ref)
   (unbox ref))
@@ -482,8 +483,8 @@
               id
               (lambda (x) x)
               (lambda () (eopl:error 'apply-env ; procedure to call if id not in env
-                        		         "variable not found in environment: ~s"
-			                               id)))
+                		         "variable not found in environment: ~s"
+                           id)))
             ))]
       [quoted-exp (id) id]
       [if-else-exp (condition true false)
@@ -514,17 +515,17 @@
       [set!-exp (var expr)
         (set-ref!
           (apply-env-ref env 
-                         id
-                         (lambda (x) x)
-                         (lambda ()
-                            (apply-env-ref
-                              global-env
-                              id
-                              (lambda (x) x)
-                              (lambda ()
-                                (eopl:error 'apply-env-ref
-                                            "variable not found in environment: ~s"
-                                            id)))))
+            id
+            (lambda (x) x)
+            (lambda ()
+              (apply-env-ref
+                global-env
+                id
+                (lambda (x) x)
+                (lambda ()
+                  (eopl:error 'apply-env-ref
+                    "variable not found in environment: ~s"
+                    id)))))
           (eval-exp expr env))]
       [else (eopl:error 'eval-exp "Bad abstract syntax: ~a" exp)])))
 
