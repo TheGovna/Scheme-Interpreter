@@ -359,8 +359,21 @@
               vars
               bodies)
             declarations))]
-      [let*-exp (vars declarations bodies) exp]
-      [letrec-exp (vars declarations bodies) ; HEREE
+      [let*-exp (vars declarations bodies)
+        (syntax-expand 
+          (if (= (length vars) 0)
+              (let-exp
+                '()
+                '()
+                bodies)
+              (let-exp
+                (list (car vars))
+                (list (car declarations))
+                (list (let*-exp
+                        (cdr vars)
+                        (cdr declarations)
+                        bodies)))))]
+      [letrec-exp (vars declarations bodies)
         (let [[random-symbols (make-list-of-random-symbols (length vars))]]
           (syntax-expand
             (let-exp
@@ -372,11 +385,12 @@
                         (append 
                           (map (lambda (var temp)
                                  (set!-exp var (var-exp temp))) vars random-symbols)
-                          (list (begin-exp bodies))))))))]
+                          bodies
+                          ))))))]
       [lambda-list-exp (id bodies)
         (lambda-list-exp
           id
-          (map syntax-expand bodies))] ; think this is right?      
+          (map syntax-expand bodies))]      
       [lambda-single-exp (id bodies) exp]      
       [lambda-improper-exp (id other bodies) exp]
       [set!-exp (var expr) 
