@@ -73,7 +73,11 @@
     (exprs (list-of expression?))]
   [app-exp
     (rator expression?)
-    (rand (list-of expression?))])
+    (rand (list-of expression?))]
+  [define-exp
+    (var symbol?)
+    (expr expression?)]
+  )
 
 (define-datatype environment environment?
   (empty-env-record)
@@ -253,10 +257,14 @@
        (while-exp
          (parse-exp (2nd datum))
          (map parse-exp (cddr datum)))]
+      [(eqv? (1st datum) 'define)
+        (define-exp
+          (2nd datum)
+          (parse-exp (3rd datum)))]
       [(valid-app-exp? datum) 
        (app-exp 
          (parse-exp (1st datum))
-         (map parse-exp (cdr datum)))]      
+         (map parse-exp (cdr datum)))]     
       [else (eopl:error 'parse-exp "bad expression: ~s" datum)])))
 
  ; #environment                               
@@ -323,6 +331,10 @@
 
 (define (set-ref! ref value)
   (set-box! ref value))
+
+(define (reset-global-env)
+  (set! global-env init-env))
+
  ; #syntax expander
  ;   _____             _               ______                            _           
  ;  / ____|           | |             |  ____|                          | |          
@@ -458,6 +470,7 @@
                       (var-exp temp)
                       (syntax-expand (or-exp (cdr exps))))))]
               ))]
+      [define-exp (var expr) exp]
       )))
                                                                        
 (define member?
@@ -500,9 +513,10 @@
 (define top-level-eval
   (lambda (form)
     ; later we may add things that are not expressions.
-    (eval-exp form (empty-env))))
+    (cases expression form
+      [define-exp (var expr) (set! global-env (extend-env (list var) (list (eval-exp expr (empty-env))) global-env))] 
+      [else (eval-exp form (empty-env))])))
 
-; let's hope Claude only does this thing only in Chez Scheme
 (define eval-bodies
   (lambda (bodies env)
     (let eval-bodies ([bodies bodies])
@@ -567,13 +581,10 @@
                 var
                 (lambda (x) x)
                 (lambda ()
-                  (call/cc
-                    (lambda (k)
-                      (extend-env 
-                        (list var)
-                        (list (eval-exp expr env))
-                        env)))))))
+                  (eopl:error 'set! "Variable not previously defined: ~s" var)))))
           (eval-exp expr env))]
+      [define-exp (var expr)
+        (eopl:error 'define-exp "You should not be here! Something is very broken...")]
       [else (eopl:error 'eval-exp "Bad abstract syntax: ~a" exp)])))
 
 ; evaluate the list of operands, putting results into a list
