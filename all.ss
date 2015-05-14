@@ -346,7 +346,6 @@
 
 (define syntax-expand
   (lambda (exp)
-    ;(display exp) (newline)
     (cases expression exp
       [var-exp (id) exp]
       [lit-exp (id) exp]
@@ -459,16 +458,28 @@
                         (list (app-exp (var-exp temp) (list (var-exp temp))))))))))
               (list (app-exp (var-exp 'x) (list (var-exp 'x))))))))]      
       [or-exp (exps)
-        (let [[temp (generate-random-symbol)]]
-          (cond
-            [(null? exps) (lit-exp #f)]
-            [(null? (cdr exps)) (car exps)]
-            [else
-              (let-exp (list temp) (list (car exps))
-              (list (if-else-exp (var-exp temp)
-                      (var-exp temp)
-                      (syntax-expand (or-exp (cdr exps))))))]
-              ))]
+        ;(let [[temp (generate-random-symbol)]]
+        ;  (cond
+        ;    [(null? exps) (lit-exp #f)]
+        ;    [(null? (cdr exps)) (car exps)]
+        ;    [else
+        ;      (let-exp (list temp) (list (car exps))
+        ;      (list (if-else-exp (var-exp temp)
+        ;              (var-exp temp)
+        ;              (syntax-expand (or-exp (cdr exps))))))]
+        ;      ))
+        (syntax-expand
+          (let [[temp (generate-random-symbol)]]
+            (cond
+               [(null? exps) (lit-exp #f)]
+               [(null? (cdr exps)) (car exps)]
+               [else
+                 (let-exp (list temp) (list (car exps))
+                   (list (if-else-exp (var-exp temp)
+                           (var-exp temp)
+                           (or-exp (cdr exps)))))]
+               )))
+        ]
       [define-exp (var expr) 
         (define-exp
           var
@@ -529,12 +540,6 @@
 
 (define eval-exp
   (lambda (exp env)
-    ;(display env)
-    ;(newline)
-    ;(newline)
-    ;(display global-env)
-    ;(newline)
-    ;(newline)
     (cases expression exp
       [lit-exp (datum) datum]
       [var-exp (id)
@@ -575,10 +580,6 @@
           (eval-bodies bodies new-env))] ; evaluate bodies in order, return last value
       [lambda-list-exp (id bodies)
         (begin 
-          ;(display global-env)
-          ;(newline)
-          ;(newline)
-          ;(display env)
           (closure id bodies env))]
       [lambda-single-exp (id bodies)
         (closure-single-arg id bodies env)]
@@ -602,7 +603,6 @@
                            (list var) 
                            (list (eval-exp expr env)) 
                            global-env))
-          ;(display global-env)
           )
         ]
       [else (eopl:error 'eval-exp "Bad abstract syntax: ~a" exp)])))
