@@ -516,7 +516,7 @@
 (define top-level-eval
   (lambda (form)
     ; later we may add things that are not expressions.
-      (eval-exp form global-env)))
+      (eval-exp form (empty-env))))
 
 (define eval-bodies
   (lambda (bodies env)
@@ -529,6 +529,12 @@
 
 (define eval-exp
   (lambda (exp env)
+    ;(display env)
+    ;(newline)
+    ;(newline)
+    ;(display global-env)
+    ;(newline)
+    ;(newline)
     (cases expression exp
       [lit-exp (datum) datum]
       [var-exp (id)
@@ -537,15 +543,15 @@
           id; look up its value.
           (lambda (x) x) ; procedure to call if id is in the environment 
           (lambda () ; procedure to call if id is not in env
-            ;(apply-env 
-            ;  global-env ; was init-env
-            ;  id
-            ;  (lambda (x) x)
-            ;  (lambda () 
+            (apply-env-ref 
+              global-env ; was init-env
+              id
+              (lambda (x) x)
+              (lambda () 
                 (eopl:error 'apply-env ; procedure to call if id not in env
                 		         "variable not found in environment: ~s"
                            id)
-             ;   ))
+                ))
             ))]
       [quoted-exp (id) id]
       [if-else-exp (condition true false)
@@ -584,12 +590,12 @@
             var
             (lambda (x) x)
             (lambda ()
-              ;(apply-env-ref
-              ;  global-env
-              ;  var
-              ;  (lambda (x) x)
-              ;  (lambda ()
-                  (eopl:error 'set! "Variable not previously defined: ~s" var)))
+              (apply-env-ref
+                global-env
+                var
+                (lambda (x) x)
+                (lambda ()
+                  (eopl:error 'set! "Variable not previously defined: ~s" var)))))
           (eval-exp expr env))]
       [define-exp (var expr)
         (begin (set! global-env (extend-env 
