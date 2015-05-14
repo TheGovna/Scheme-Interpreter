@@ -45,6 +45,10 @@
   [lambda-list-exp
     (id (list-of symbol?))
     (body (list-of expression?))]
+  [lambda-ref-exp
+    (id (list-of symbol?))
+    (refs (list-of symbol?))
+    (body (list-of expression?))]
   [lambda-single-exp
     (id symbol?)
     (body (list-of expression?))]
@@ -77,6 +81,8 @@
   [define-exp
     (var symbol?)
     (expr expression?)]
+  [ref-exp
+    (var symbol?)]
   )
 
 (define-datatype environment environment?
@@ -171,6 +177,31 @@
         [else (loop (cdr exp) (append result (list (cadar exp))))]
         ))))
 
+; Takes the args of a lambda-list-exp and gets the ones that aren't refs
+(define get-vars
+  (lambda (args)
+    (let loop [[args args]
+               [result '()]]
+      (cond
+        [(null? args) result]
+        [(symbol? (car args))
+         (loop (cdr args) (append result (list (car args))))]
+        [else
+          (loop (cdr args) result)]
+        ))))
+
+(define get-refs
+  (lambda (args)
+    (let loop [[args args]
+               [result '()]]
+      (cond
+        [(null? args) result]
+        [(list? (car args))
+         (loop (cdr args) (append result (list (cadar args))))]
+        [else
+          (loop (cdr args) result)]
+        ))))
+
 (define parse-exp         
   (lambda (datum)
     (cond
@@ -183,7 +214,12 @@
           (if (valid-lambda-list-exp? datum) 
               (lambda-list-exp 
                 (2nd datum)
-                (map parse-exp (cddr datum))))]
+                (map parse-exp (cddr datum)))
+              (lambda-ref-exp
+                (get-vars (2nd datum))
+                (get-refs (2nd datum))
+                (map parse-exp (cddr datum)))
+              )]
          [(symbol? (2nd datum)) ; single arg
           (if (valid-lambda-single-exp? datum)
               (lambda-single-exp
@@ -458,16 +494,6 @@
                         (list (app-exp (var-exp temp) (list (var-exp temp))))))))))
               (list (app-exp (var-exp 'x) (list (var-exp 'x))))))))]      
       [or-exp (exps)
-        ;(let [[temp (generate-random-symbol)]]
-        ;  (cond
-        ;    [(null? exps) (lit-exp #f)]
-        ;    [(null? (cdr exps)) (car exps)]
-        ;    [else
-        ;      (let-exp (list temp) (list (car exps))
-        ;      (list (if-else-exp (var-exp temp)
-        ;              (var-exp temp)
-        ;              (syntax-expand (or-exp (cdr exps))))))]
-        ;      ))
         (syntax-expand
           (let [[temp (generate-random-symbol)]]
             (cond
@@ -788,11 +814,17 @@
   (lambda (lst)
     (cond
       [(< (length lst) 3)
-       (eopl:error 'parse-exp "lambda expression: incorrect length: ~s" lst)]
+       #f
+       ;(eopl:error 'parse-exp "lambda expression: incorrect length: ~s" lst)
+       ]
       [(not (list? (2nd lst)))
-       (eopl:error 'parse-exp "lambda expression: arguments must be a proper list: ~s" (2nd lst))]
+       #f
+       ;(eopl:error 'parse-exp "lambda expression: arguments must be a proper list: ~s" (2nd lst))
+       ]
       [(not (andmap symbol? (2nd lst)))
-       (eopl:error 'parse-exp "lambda argument list: formals must be symbols: ~s" (2nd lst))]
+       #f
+       ;(eopl:error 'parse-exp "lambda argument list: formals must be symbols: ~s" (2nd lst))
+       ]
       [else #t]
       )))
 
