@@ -135,7 +135,6 @@
       (if (pair? lst) 
           (loop (cdr lst) (append result (list (car lst))))
           result))))
-
 ; Gets the last element of an improper list
 ; Ex: improper-lst = '(a b . c)
 ;     result = c
@@ -258,9 +257,9 @@
          (parse-exp (2nd datum))
          (map parse-exp (cddr datum)))]
       [(eqv? (1st datum) 'define)
-        (define-exp
-          (2nd datum)
-          (parse-exp (3rd datum)))]
+       (define-exp
+         (2nd datum)
+         (parse-exp (3rd datum)))]
       [(valid-app-exp? datum) 
        (app-exp 
          (parse-exp (1st datum))
@@ -470,7 +469,11 @@
                       (var-exp temp)
                       (syntax-expand (or-exp (cdr exps))))))]
               ))]
-      [define-exp (var expr) exp]
+      [define-exp (var expr) 
+        (define-exp
+          var
+          (syntax-expand expr))
+        ]
       )))
                                                                        
 (define member?
@@ -513,16 +516,14 @@
 (define top-level-eval
   (lambda (form)
     ; later we may add things that are not expressions.
-    (cases expression form
-      [define-exp (var expr) (set! global-env (extend-env (list var) (list (eval-exp expr (empty-env))) global-env))] 
-      [else (eval-exp form (empty-env))])))
+      (eval-exp form global-env)))
 
 (define eval-bodies
   (lambda (bodies env)
-    (let eval-bodies ([bodies bodies])
+    (let eval-bodies ([bodies bodies] [env env])
       (if (null? (cdr bodies))
           (eval-exp (car bodies) env)
-          (begin (eval-exp (car bodies) env) (eval-bodies (cdr bodies)))))))
+          (begin (eval-exp (car bodies) env) (eval-bodies (cdr bodies) env))))))
 
 ; eval-exp is the main component of the interpreter
 
@@ -536,13 +537,15 @@
           id; look up its value.
           (lambda (x) x) ; procedure to call if id is in the environment 
           (lambda () ; procedure to call if id is not in env
-            (apply-env 
-              global-env ; was init-env
-              id
-              (lambda (x) x)
-              (lambda () (eopl:error 'apply-env ; procedure to call if id not in env
+            ;(apply-env 
+            ;  global-env ; was init-env
+            ;  id
+            ;  (lambda (x) x)
+            ;  (lambda () 
+                (eopl:error 'apply-env ; procedure to call if id not in env
                 		         "variable not found in environment: ~s"
-                           id)))
+                           id)
+             ;   ))
             ))]
       [quoted-exp (id) id]
       [if-else-exp (condition true false)
@@ -565,7 +568,12 @@
                   env)]]
           (eval-bodies bodies new-env))] ; evaluate bodies in order, return last value
       [lambda-list-exp (id bodies)
-        (closure id bodies env)]
+        (begin 
+          ;(display global-env)
+          ;(newline)
+          ;(newline)
+          ;(display env)
+          (closure id bodies env))]
       [lambda-single-exp (id bodies)
         (closure-single-arg id bodies env)]
       [lambda-improper-exp (ids other bodies)
@@ -576,15 +584,21 @@
             var
             (lambda (x) x)
             (lambda ()
-              (apply-env-ref
-                global-env
-                var
-                (lambda (x) x)
-                (lambda ()
-                  (eopl:error 'set! "Variable not previously defined: ~s" var)))))
+              ;(apply-env-ref
+              ;  global-env
+              ;  var
+              ;  (lambda (x) x)
+              ;  (lambda ()
+                  (eopl:error 'set! "Variable not previously defined: ~s" var)))
           (eval-exp expr env))]
       [define-exp (var expr)
-        (eopl:error 'define-exp "You should not be here! Something is very broken...")]
+        (begin (set! global-env (extend-env 
+                           (list var) 
+                           (list (eval-exp expr env)) 
+                           global-env))
+          ;(display global-env)
+          )
+        ]
       [else (eopl:error 'eval-exp "Bad abstract syntax: ~a" exp)])))
 
 ; evaluate the list of operands, putting results into a list
@@ -644,9 +658,10 @@
 (define init-env         ; for now, our initial global environment only contains 
   (extend-env            ; procedure names.  Recall that an environment associates
      *prim-proc-names*   ;  a value (not an expression) with an identifier.
-     (map box
+     ;(map box
       (map prim-proc      
-          *prim-proc-names*))
+          *prim-proc-names*)
+       ;)
      (empty-env)))
 
 (define global-env init-env)
