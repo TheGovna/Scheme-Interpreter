@@ -47,7 +47,8 @@
     (body (list-of expression?))]
   [lambda-ref-exp
     (id (list-of symbol?))
-    (refs (list-of symbol?))
+    (refs (list-of number?))
+    ;(refs (list-of symbol?))
     (body (list-of expression?))]
   [lambda-single-exp
     (id symbol?)
@@ -81,8 +82,6 @@
   [define-exp
     (var symbol?)
     (expr expression?)]
-  [ref-exp
-    (var symbol?)]
   )
 
 (define-datatype environment environment?
@@ -109,6 +108,11 @@
   [closure-improper-args
     (ids (list-of symbol?))
     (other symbol?)
+    (bodies (list-of expression?))
+    (env environment?)]
+  [closure-ref
+    (ids (list-of symbol?))
+    (refs (list-of number?))
     (bodies (list-of expression?))
     (env environment?)])
 	 	
@@ -177,29 +181,24 @@
         [else (loop (cdr exp) (append result (list (cadar exp))))]
         ))))
 
-; Takes the args of a lambda-list-exp and gets the ones that aren't refs
-(define get-vars
+(define get-ids
   (lambda (args)
-    (let loop [[args args]
-               [result '()]]
-      (cond
-        [(null? args) result]
-        [(symbol? (car args))
-         (loop (cdr args) (append result (list (car args))))]
-        [else
-          (loop (cdr args) result)]
-        ))))
+    (map (lambda (x)
+           (if (list? x)
+               (cadr x)
+               x)) args)))
 
 (define get-refs
   (lambda (args)
     (let loop [[args args]
-               [result '()]]
+               [result '()]
+               [count 0]]
       (cond
-        [(null? args) result]
-        [(list? (car args))
-         (loop (cdr args) (append result (list (cadar args))))]
+        [(null? args) (reverse result)]
+        [(list? (car args)) ; assume ref
+         (loop (cdr args) (cons count result) (+ count 1))]
         [else
-          (loop (cdr args) result)]
+          (loop (cdr args) result (+ count 1))]
         ))))
 
 (define parse-exp         
@@ -216,7 +215,7 @@
                 (2nd datum)
                 (map parse-exp (cddr datum)))
               (lambda-ref-exp
-                (get-vars (2nd datum))
+                (get-ids (2nd datum))
                 (get-refs (2nd datum))
                 (map parse-exp (cddr datum)))
               )]
@@ -321,6 +320,11 @@
   (lambda (syms vals env)
     (begin ;(display '(*** extend-env ***)) (newline) (display '-syms:) (display syms) (newline) (display '-vals:) (display vals) (newline) (display '-env:) (display env) (newline) (newline)
       (extended-env-record syms (map box vals) env))))
+
+(define extend-env-with-refs
+  (lambda (syms boxed-vals env)
+    (begin ;(display '(*** extend-env ***)) (newline) (display '-syms:) (display syms) (newline) (display '-vals:) (display vals) (newline) (display '-env:) (display env) (newline) (newline)
+      (extended-env-record syms boxed-vals env))))
 
 (define list-find-position
   (lambda (sym los)
@@ -436,11 +440,18 @@
       [lambda-list-exp (id bodies)
         (lambda-list-exp
           id
+          (map syntax-expand bodies))]
+      [lambda-ref-exp (ids refs bodies)
+        (lambda-ref-exp
+          ids
+          refs
           (map syntax-expand bodies))]      
       [lambda-single-exp (id bodies) exp]      
       [lambda-improper-exp (id other bodies) exp]
       [set!-exp (var expr) 
-        exp]
+        (set!-exp
+          var
+          (syntax-expand expr))]
       [app-exp (rator rands)
         (begin ;(display exp) (newline) (display rands)
         (app-exp
@@ -574,7 +585,7 @@
           id; look up its value.
           (lambda (x) x) ; procedure to call if id is in the environment 
           (lambda () ; procedure to call if id is not in env
-            (apply-env-ref 
+            (apply-env-ref
               global-env ; was init-env
               id
               (lambda (x) x)
@@ -594,9 +605,60 @@
             (eval-exp true env) 
             (void))]
       [app-exp (rator rands)
-        (let ([proc-value (eval-exp rator env)]
-              [args (eval-rands rands env)])
-          (apply-proc proc-value args))]
+        (let [[proc-value (eval-exp rator env)]]
+          (cases proc-val proc-value
+            [prim-proc (name)
+              (let [[args (eval-rands rands env)]]
+                (apply-proc proc-value args))]
+            [closure (ids bodies proc-env)
+              (let [[args (eval-rands rands env)]]
+                (apply-proc proc-value args))]
+            [closure-single-arg (id bodies proc-env)
+              (let [[args (eval-rands rands env)]]
+                (apply-proc proc-value args))]
+            [closure-improper-args (ids other bodies proc-env)
+              (let [[args (eval-rands rands env)]]
+                (apply-proc proc-value args))]
+            [closure-ref (ids refs bodies proc-env)
+              (let* [[call-by-value-args (pick-all-except ids refs)]
+                     [call-by-reference-args (pick-from-list ids refs)]
+                     [evaluated-value-args (eval-rands (pick-all-except rands refs) env)]
+                     [new-env
+                       (extend-env
+                         call-by-value-args
+                         evaluated-value-args
+                         proc-env)]
+                     [new-env-refs
+                       (extend-env-with-refs
+                         call-by-reference-args
+                         (map (lambda (x)
+                                (apply-env-ref
+                                  env
+                                  (unparse-exp x)
+                                  (lambda (y) y)
+                                  
+                                  (lambda () ; procedure to call if id is not in env
+                                    (apply-env-ref
+                                      global-env ; was init-env
+                                      (unparse-exp x)
+                                      (lambda (x) x)
+                                      (lambda () 
+                                        (eopl:error 'apply-env ; procedure to call if id not in env
+                               		         "variable not found in environment: ~s"
+                                          (unparse-exp x)))))
+                                  ))
+                           
+                           
+                           
+                           (pick-from-list rands refs))
+                         new-env
+                         )]]
+                (eval-bodies bodies new-env-refs))
+              ]))
+        ;(let ([proc-value (eval-exp rator env)]
+        ;      [args (eval-rands rands env)])
+        ;  (apply-proc proc-value args))
+        ]
       [let-exp (vars declarations bodies)
         (let [[new-env
                 (extend-env 
@@ -611,6 +673,8 @@
         (closure-single-arg id bodies env)]
       [lambda-improper-exp (ids other bodies)
         (closure-improper-args ids other bodies env)]
+      [lambda-ref-exp (ids refs bodies)
+        (closure-ref ids refs bodies env)]
       [set!-exp (var expr)
         (set-ref!
           (apply-env-ref env 
@@ -638,7 +702,28 @@
 (define eval-rands
   (lambda (rands env)
     (map (lambda (x) (eval-exp x env)) rands)))
-
+                                                                       
+(define pick-from-list
+  (lambda (ls refs)
+    (map (lambda (x)
+           (list-ref ls x)) refs)))
+                                                                       
+(define pick-all-except
+  (lambda (ls refs)
+    (let loop [[ls ls]
+               [refs refs]
+               [count 0]
+               [result '()]]
+      (cond
+        [(null? ls) (reverse result)]
+        [(null? refs) 
+         (loop (cdr ls) refs (+ count 1) (cons (car ls) result))]
+        [(= count (car refs))
+         (loop (cdr ls) (cdr refs) (+ count 1) result)]
+        [else
+          (loop (cdr ls) refs (+ count 1) (cons (car ls) result))]
+        ))))
+                                                                       
 ;  Apply a procedure to its arguments.
 ;  At this point, we only have primitive procedures.  
 ;  User-defined procedures will be added later.
@@ -656,14 +741,21 @@
                   args
                   env)]]
           (eval-bodies bodies new-env)))]
+;      [closure-ref (ids refs bodies env) ; HEREE
+;        (let [[new-env
+;                (extend-env
+;                  ids
+;                  args
+;                  env)]]
+;          (eval-bodies bodies new-env))]
       [closure-single-arg (id bodies env)
         (begin ;(display '(*** apply-proc to closure-single-arg ***)) (newline) (display '-id:) (display id) (newline) (display '-bodies:) (display bodies) (newline) (display '-environment:) (display env) (newline) (display '-args:) (display args) (newline)  (newline)       
-       (let [[new-env
-               (extend-env
-                 (list id)
-                 (list args)
-                 env)]]
-          (eval-bodies bodies new-env))
+          (let [[new-env
+                  (extend-env
+                    (list id)
+                    (list args)
+                    env)]]
+            (eval-bodies bodies new-env))
        )]
       [closure-improper-args (ids other bodies env)
         (begin ;(display '(*** apply-proc to closure-improper-args ***)) (newline) (display '-ids:) (display ids) (newline) (display '-other:) (display other) (newline) (display '-bodies:) (display bodies) (newline) (display '-environment:) (display env) (newline) (display '-args:) (display args) (newline)  (newline)       
@@ -1008,6 +1100,7 @@
               [lambda-with-vars (list 'lambda id)]]
           (append lambda-with-vars unparsed-body))
         ]
+      [lambda-ref-exp (ids refs bodies) (list 'LAMBDA-REF-EXP)]
       [lambda-single-exp (id body)
         (let [[unparsed-body (map unparse-exp body)]
               [lambda-with-vars (list 'lambda id)]]
@@ -1021,6 +1114,8 @@
       [set!-exp (var expr)
         (list 'set! var
           (unparse-exp expr))]
+      [define-exp (id expr)
+        (list 'DEFINE-EXP)]
       [app-exp (rator rand)
         (let [[unparsed-rand (map unparse-exp rand)]
               [app-with-rator (list (unparse-exp rator))]]
